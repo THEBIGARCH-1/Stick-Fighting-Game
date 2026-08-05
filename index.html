@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code-Drawn Stickman Battle</title>
+    <title>Pro Procedural Stickman Animation</title>
     <style>
         body {
             margin: 0;
@@ -11,13 +11,14 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #f0f0f0;
+            background-color: #111;
             font-family: sans-serif;
+            color: #fff;
         }
         canvas {
-            background-color: #ffffff;
-            border: 2px solid #333;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: #222;
+            border: 2px solid #555;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
         #instructions {
             position: absolute;
@@ -29,8 +30,8 @@
 <body>
 
     <div id="instructions">
-        <h2>Pure Code Stickman Controls</h2>
-        <p><strong>D:</strong> Move Right | <strong>A:</strong> Move Left | <strong>Shift:</strong> Sprint | <strong>Ctrl:</strong> Crawl</p>
+        <h2>Advanced Code-Rigged Stickman</h2>
+        <p><strong>A / D:</strong> Walk/Run | <strong>Shift:</strong> Sprint | <strong>Ctrl:</strong> Crawl</p>
     </div>
 
     <canvas id="gameCanvas" width="800" height="400"></canvas>
@@ -39,23 +40,18 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Player object created purely with code coordinates
-        const player = {
-            x: 100,
-            y: 260, // Baseline ground level for standing
-            speed: 0,
-            direction: 1, // 1 for right, -1 for left
-            action: 'idle', // 'idle', 'walk', 'sprint', 'crawl'
-            animFrame: 0
+        // Stickman Physics & State Object
+        const stickman = {
+            x: 400,
+            y: 300, // Ground level baseline
+            vx: 0,
+            facing: 1, // 1 = Right, -1 = Left
+            state: 'idle', // 'idle', 'walk', 'sprint', 'crawl'
+            animTime: 0
         };
 
-        // Input tracking for WASD and modifiers
-        const keys = {
-            KeyD: false,
-            KeyA: false,
-            Shift: false,
-            Control: false
-        };
+        // Keyboard tracking
+        const keys = { KeyA: false, KeyD: false, Shift: false, Control: false };
 
         window.addEventListener('keydown', (e) => {
             if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
@@ -69,140 +65,170 @@
             if (e.key === 'Control') keys.Control = false;
         });
 
-        function updatePlayer() {
-            player.speed = 0;
-            player.action = 'idle';
+        function update() {
+            let moveDir = 0;
+            if (keys.KeyD) moveDir = 1;
+            if (keys.KeyA) moveDir = -1;
 
-            let isMovingHorizontally = keys.KeyD || keys.KeyA;
-
-            if (isMovingHorizontally) {
-                if (keys.KeyD) {
-                    player.direction = 1;
-                } else if (keys.KeyA) {
-                    player.direction = -1;
-                }
-
+            if (moveDir !== 0) {
+                stickman.facing = moveDir;
                 if (keys.Control) {
-                    player.action = 'crawl';
-                    player.speed = 1.5;
-                    player.y = 300; // Lower position for crawling
+                    stickman.state = 'crawl';
+                    stickman.vx = moveDir * 1.5;
                 } else if (keys.Shift) {
-                    player.action = 'sprint';
-                    player.speed = 5;
-                    player.y = 260;
+                    stickman.state = 'sprint';
+                    stickman.vx = moveDir * 5.5;
                 } else {
-                    player.action = 'walk';
-                    player.speed = 2.5;
-                    player.y = 260;
+                    stickman.state = 'walk';
+                    stickman.vx = moveDir * 3;
                 }
-
-                player.x += player.speed * player.direction;
-                player.animFrame += 0.15; // Drives leg/arm swinging animation
+                // Advance animation time based on velocity speed
+                stickman.animTime += Math.abs(stickman.vx) * 0.12;
             } else {
-                player.y = 260;
-                player.animFrame = 0;
+                stickman.state = 'idle';
+                stickman.vx = 0;
+                stickman.animTime = 0;
             }
 
-            // Screen boundaries wrap around
-            if (player.x > canvas.width + 20) player.x = -20;
-            if (player.x < -20) player.x = canvas.width + 20;
+            stickman.x += stickman.vx;
+            // Screen boundaries
+            if (stickman.x < 50) stickman.x = 50;
+            if (stickman.x > canvas.width - 50) stickman.x = canvas.width - 50;
+        }
+
+        // Inverse Kinematics / Trigonometric Joint Calculator for Smooth Limbs
+        function getJointPosition(hipX, hipY, upperLength, lowerLength, angle1, angle2) {
+            let kneeX = hipX + Math.sin(angle1) * upperLength;
+            let kneeY = hipY + Math.cos(angle1) * upperLength;
+            let footX = kneeX + Math.sin(angle2) * lowerLength;
+            let footY = kneeY + Math.cos(angle2) * lowerLength;
+            return { kneeX, kneeY, footX, footY };
         }
 
         function drawStickman() {
             ctx.save();
-            ctx.translate(player.x, player.y);
-            
-            // If facing left, flip the drawing canvas horizontally
-            if (player.direction === -1) {
-                ctx.scale(-1, 1);
-            }
+            ctx.translate(stickman.x, stickman.y);
+            ctx.scale(stickman.facing, 1); // Flip horizontally depending on direction
 
-            // Stickman styling
             ctx.lineWidth = 4;
-            ctx.strokeStyle = '#000000';
-            ctx.fillStyle = '#000000';
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.fillStyle = '#FFFFFF';
             ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
 
-            let swing = Math.sin(player.animFrame) * 15;
+            let t = stickman.animTime;
 
-            if (player.action === 'crawl') {
-                // --- CRAWLING POSE (Drawn with code) ---
-                // Head
-                ctx.beginPath();
-                ctx.arc(20, -15, 10, 0, Math.PI * 2);
-                ctx.fill();
+            // Define body structure metrics based on state
+            let torsoHeight = 45;
+            let upperLegLen = 22;
+            let lowerLegLen = 22;
+            let upperArmLen = 18;
+            let lowerArmLen = 18;
+            let hipY = -torsoHeight;
+            let headOffsetY = -torsoHeight - 12;
 
-                // Body (Horizontal)
-                ctx.beginPath();
-                ctx.moveTo(-15, -15);
-                ctx.lineTo(25, -15);
-                ctx.stroke();
+            let hipOffsetBackX = -4;
+            let hipOffsetFrontX = 4;
 
-                // Arms and legs bent for crawling motion
-                ctx.beginPath();
-                // Front arm/leg
-                ctx.moveTo(15, -15);
-                ctx.lineTo(20 + swing, 0);
-                ctx.moveTo(-10, -15);
-                ctx.lineTo(-5 - swing, 0);
-                // Back limbs
-                ctx.moveTo(5, -15);
-                ctx.lineTo(10 - swing, 0);
-                ctx.stroke();
-
-            } else {
-                // --- STANDING / WALKING / SPRINTING POSE (Drawn with code) ---
-                let bodyHeight = 50;
-                
-                // Head
-                ctx.beginPath();
-                ctx.arc(0, -bodyHeight - 12, 10, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Torso
-                ctx.beginPath();
-                ctx.moveTo(0, -bodyHeight);
-                ctx.lineTo(0, -15);
-                ctx.stroke();
-
-                // Arms (swinging if moving)
-                ctx.beginPath();
-                ctx.moveTo(0, -bodyHeight + 10);
-                ctx.lineTo(15 + swing, -20);
-                ctx.moveTo(0, -bodyHeight + 10);
-                ctx.lineTo(-15 - swing, -20);
-                ctx.stroke();
-
-                // Legs (walking/sprinting strides)
-                ctx.beginPath();
-                ctx.moveTo(0, -15);
-                ctx.lineTo(15 + swing, 0);
-                ctx.moveTo(0, -15);
-                ctx.lineTo(-15 - swing, 0);
-                ctx.stroke();
+            if (stickman.state === 'crawl') {
+                torsoHeight = 20;
+                hipY = -25;
+                headOffsetY = -30;
+                upperLegLen = 16;
+                lowerLegLen = 16;
+                upperArmLen = 14;
+                lowerArmLen = 14;
             }
+
+            // Procedural swing angles using mathematical sine waves
+            let legSwing1 = Math.sin(t);
+            let legSwing2 = Math.sin(t + Math.PI);
+            let armSwing1 = Math.sin(t + Math.PI);
+            let armSwing2 = Math.sin(t);
+
+            if (stickman.state === 'idle') {
+                legSwing1 = 0;
+                legSwing2 = 0;
+                armSwing1 = 0.1;
+                armSwing2 = -0.1;
+            } else if (stickman.state === 'sprint') {
+                // Lean forward factor during full sprint
+                ctx.rotate(0.2); 
+            } else if (stickman.state === 'crawl') {
+                legSwing1 *= 1.2;
+                legSwing2 *= 1.2;
+            }
+
+            // Calculate leg joints
+            let leftLeg = getJointPosition(hipOffsetBackX, hipY, upperLegLen, lowerLegLen, legSwing1 * 0.8, legSwing1 * 1.2);
+            let rightLeg = getJointPosition(hipOffsetFrontX, hipY, upperLegLen, lowerLegLen, legSwing2 * 0.8, legSwing2 * 1.2);
+
+            // Calculate arm joints
+            let leftArm = getJointPosition(0, hipY + 10, upperArmLen, lowerArmLen, armSwing1 * 0.7, armSwing1 * 0.9);
+            let rightArm = getJointPosition(0, hipY + 10, upperArmLen, lowerArmLen, armSwing2 * 0.7, armSwing2 * 0.9);
+
+            // 1. Draw Back Limbs (Behind torso)
+            ctx.beginPath();
+            // Back Leg
+            ctx.moveTo(hipOffsetBackX, hipY);
+            ctx.lineTo(leftLeg.kneeX, leftLeg.kneeY);
+            ctx.lineTo(leftLeg.footX, leftLeg.footY);
+            // Back Arm
+            ctx.moveTo(0, hipY + 10);
+            ctx.lineTo(leftArm.kneeX, leftArm.kneeY);
+            ctx.lineTo(leftArm.footX, leftArm.footY);
+            ctx.stroke();
+
+            // 2. Draw Torso
+            ctx.beginPath();
+            ctx.moveTo(0, 0); // Ground pelvis anchor / base
+            ctx.lineTo(0, hipY);
+            ctx.stroke();
+
+            // 3. Draw Head
+            ctx.beginPath();
+            ctx.arc(0, headOffsetY, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Face indicator dot so you can clearly see which way he looks
+            ctx.beginPath();
+            ctx.arc(4, headOffsetY - 2, 2, 0, Math.PI * 2);
+            ctx.fillStyle = '#222';
+            ctx.fill();
+            ctx.fillStyle = '#FFFFFF';
+
+            // 4. Draw Front Limbs (In front of torso)
+            ctx.beginPath();
+            // Front Leg
+            ctx.moveTo(hipOffsetFrontX, hipY);
+            ctx.lineTo(rightLeg.kneeX, rightLeg.kneeY);
+            ctx.lineTo(rightLeg.footX, rightLeg.footY);
+            // Front Arm
+            ctx.moveTo(0, hipY + 10);
+            ctx.lineTo(rightArm.kneeX, rightArm.kneeY);
+            ctx.lineTo(rightArm.footX, rightArm.footY);
+            ctx.stroke();
 
             ctx.restore();
         }
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw a simple ground line
+
+            // Draw floor line
             ctx.beginPath();
-            ctx.moveTo(0, 310);
-            ctx.lineTo(800, 310);
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#333';
+            ctx.moveTo(50, 305);
+            ctx.lineTo(750, 305);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#444';
             ctx.stroke();
 
-            updatePlayer();
+            update();
             drawStickman();
-            
+
             requestAnimationFrame(animate);
         }
 
-        // Start game loop
         animate();
     </script>
 </body>
