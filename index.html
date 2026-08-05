@@ -3,281 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stickman Fighter - Single File Edition</title>
+    <title>Stickman Battle</title>
     <style>
-        * { box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #121212; 
-            color: #fff; 
-            text-align: center; 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden;
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: sans-serif;
         }
-        .hidden { display: none !important; }
-        .screen { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
+        canvas {
+            background-color: #ffffff;
+            border: 2px solid #333;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
-        input { 
-            padding: 12px; 
-            margin: 8px; 
-            width: 280px; 
-            border-radius: 6px; 
-            border: 1px solid #444; 
-            background: #222; 
-            color: #fff; 
-            font-size: 16px; 
-            outline: none;
-        }
-        input:focus { border-color: #ff4757; }
-        button { 
-            padding: 12px 24px; 
-            margin: 8px; 
-            background: #ff4757; 
-            color: white; 
-            border: none; 
-            border-radius: 6px; 
-            font-size: 16px; 
-            cursor: pointer; 
-            transition: background 0.2s; 
-        }
-        button:hover { background: #ff6b81; }
-        .card {
-            background: #1e1e1e; 
-            padding: 25px; 
-            border-radius: 10px; 
-            border: 1px solid #333;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-            max-width: 400px;
-            width: 100%;
-        }
-        #game-canvas { 
-            background: #1e1e1e; 
-            border: 2px solid #444; 
-            box-shadow: 0 0 25px rgba(0,0,0,0.6); 
-            border-radius: 8px;
-        }
-        .instructions {
-            margin-top: 15px;
-            color: #aaa;
-            font-size: 14px;
+        #instructions {
+            position: absolute;
+            top: 20px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
-    <div id="auth-screen" class="screen">
-        <div class="card">
-            <h1>Stickman Arena</h1>
-            <p style="color: #aaa; margin-bottom: 20px;">Create your account to start playing.</p>
-            <input type="text" id="username" placeholder="Username (e.g. shadow_strike)"><br>
-            <input type="text" id="displayname" placeholder="Display Name (e.g. Shadow)"><br>
-            <button onclick="createAccount()" style="width: 100%; margin-top: 15px;">Create Account & Play</button>
-        </div>
+    <div id="instructions">
+        <h2>Stickman Controls</h2>
+        <p><strong>Right Arrow:</strong> Move Forward | <strong>Shift:</strong> Sprint | <strong>Ctrl:</strong> Crawl</p>
     </div>
 
-    <div id="home-screen" class="screen hidden">
-        <div class="card" style="max-width: 500px;">
-            <h1 id="welcome-title" style="margin-top: 0;">Welcome</h1>
-            <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
-            <h3>Add Friends</h3>
-            <input type="text" id="search-input" placeholder="Search user by username...">
-            <button onclick="searchFriend()">Search & Add</button>
-            <p id="search-result" style="color: #2ed573; min-height: 20px; font-weight: bold;"></p>
-            <br>
-            <button onclick="enterArena()" style="background: #2ed573; font-size: 18px; width: 100%;">Enter Training Arena</button>
-        </div>
-    </div>
-
-    <div id="game-screen" class="screen hidden">
-        <canvas id="game-canvas" width="800" height="500"></canvas>
-        <div class="instructions">
-            Controls: Use <b>A</b> and <b>D</b> to Walk. Hold <b>Shift</b> while moving to Sprint! | Press <b>ESC</b> to return home.
-        </div>
-    </div>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
 
     <script>
-        // Local state management for account and data saving simulation
-        let userProfile = {};
-        let allSavedUsers = JSON.parse(localStorage.getItem('stickman_users')) || {};
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-        function createAccount() {
-            const username = document.getElementById('username').value.trim().toLowerCase();
-            const displayName = document.getElementById('displayname').value.trim();
+        // Load the sprite sheet
+        const spriteSheet = new Image();
+        spriteSheet.src = 'stickman_sprites.png'; 
 
-            if (!username || !displayName) {
-                alert("Please fill out both fields!");
-                return;
-            }
+        // Sprite sheet dimensions (6 columns, 3 rows)
+        const cols = 6;
+        const rows = 3;
+        let spriteWidth, spriteHeight;
 
-            // Save or load data locally via localStorage
-            if (!allSavedUsers[username]) {
-                allSavedUsers[username] = {
-                    username: username,
-                    displayName: displayName,
-                    friends: []
-                };
-                localStorage.setItem('stickman_users', JSON.stringify(allSavedUsers));
-            }
+        // Player object
+        const player = {
+            x: 50,
+            y: 200,
+            width: 0, 
+            height: 0,
+            frameX: 0, // Current frame in the row
+            frameY: 0, // Current row (0=walk, 1=sprint, 2=crawl)
+            speed: 0,
+            isMoving: false
+        };
 
-            userProfile = allSavedUsers[username];
+        // Animation timing
+        let gameFrame = 0;
+        const staggerFrames = 8; // Higher number = slower animation
 
-            // Transition to Home Dashboard
-            document.getElementById('auth-screen').classList.add('hidden');
-            document.getElementById('home-screen').classList.remove('hidden');
-            document.getElementById('welcome-title').innerText = `Welcome, ${userProfile.displayName}!`;
-        }
+        // Input tracking
+        const keys = {
+            ArrowRight: false,
+            Shift: false,
+            Control: false
+        };
 
-        function searchFriend() {
-            const query = document.getElementById('search-input').value.trim().toLowerCase();
-            const resultElement = document.getElementById('search-result');
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        });
 
-            if (!query) return;
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
 
-            if (query === userProfile.username) {
-                resultElement.style.color = '#ff4757';
-                resultElement.innerText = "You cannot add yourself!";
-                return;
-            }
+        // Initialize sprite dimensions once the image loads
+        spriteSheet.onload = () => {
+            spriteWidth = spriteSheet.width / cols;
+            spriteHeight = spriteSheet.height / rows;
+            player.width = spriteWidth;
+            player.height = spriteHeight;
+            animate();
+        };
 
-            if (allSavedUsers[query]) {
-                const friend = allSavedUsers[query];
-                if (!userProfile.friends.includes(query)) {
-                    userProfile.friends.push(query);
-                    localStorage.setItem('stickman_users', JSON.stringify(allSavedUsers));
-                }
-                resultElement.style.color = '#2ed573';
-                resultElement.innerText = `Success! Added ${friend.displayName} (@${friend.username}) as a friend.`;
-            } else {
-                resultElement.style.color = '#ffa502';
-                resultElement.innerText = `User '@${query}' not found in local database.`;
-            }
-            document.getElementById('search-input').value = '';
-        }
+        function updatePlayer() {
+            player.isMoving = false;
+            player.speed = 0;
 
-        function enterArena() {
-            document.getElementById('home-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-            initGame();
-        }
-
-        // Game Logic & Animation Engine
-        function initGame() {
-            const canvas = document.getElementById('game-canvas');
-            const ctx = canvas.getContext('2d');
-
-            let playerX = 400;
-            let playerY = 380;
-            let walkCycle = 0;
-            const keys = { a: false, d: false, shift: false };
-
-            window.addEventListener('keydown', (e) => {
-                if (e.key === 'a' || e.key === 'A') keys.a = true;
-                if (e.key === 'd' || e.key === 'D') keys.d = true;
-                if (e.key === 'Shift') keys.shift = true;
-                if (e.key === 'Escape') {
-                    document.getElementById('game-screen').classList.add('hidden');
-                    document.getElementById('home-screen').classList.remove('hidden');
-                }
-            });
-
-            window.addEventListener('keyup', (e) => {
-                if (e.key === 'a' || e.key === 'A') keys.a = false;
-                if (e.key === 'd' || e.key === 'D') keys.d = false;
-                if (e.key === 'Shift') keys.shift = false;
-            });
-
-            function update() {
-                let speed = keys.shift ? 7 : 3.5;
-                let isMoving = false;
-
-                if (keys.a) {
-                    playerX -= speed;
-                    isMoving = true;
-                    walkCycle += keys.shift ? 0.35 : 0.2;
-                } else if (keys.d) {
-                    playerX += speed;
-                    isMoving = true;
-                    walkCycle += keys.shift ? 0.35 : 0.2;
+            // Determine Action based on keys
+            if (keys.ArrowRight) {
+                player.isMoving = true;
+                
+                if (keys.Control) {
+                    // Crawl (Bottom Row)
+                    player.frameY = 2;
+                    player.speed = 1;
+                } else if (keys.Shift) {
+                    // Sprint (Middle Row)
+                    player.frameY = 1;
+                    player.speed = 5;
                 } else {
-                    walkCycle = 0;
+                    // Walk (Top Row)
+                    player.frameY = 0;
+                    player.speed = 2.5;
                 }
 
-                // Keep player inside canvas boundaries
-                if (playerX < 30) playerX = 30;
-                if (playerX > canvas.width - 30) playerX = canvas.width - 30;
+                // Move player right (wrap around screen)
+                player.x += player.speed;
+                if (player.x > canvas.width) player.x = -player.width;
+            } else {
+                // Return to idle (first frame of walking) if not moving
+                player.frameX = 0;
+                player.frameY = 0;
             }
 
-            function draw() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // Draw Ground Platform
-                ctx.fillStyle = '#2f3542';
-                ctx.fillRect(0, 430, canvas.width, 70);
-                ctx.fillStyle = '#ff4757';
-                ctx.fillRect(0, 427, canvas.width, 3);
-
-                // Draw Display Name above stickman
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '14px Segoe UI';
-                ctx.textAlign = 'center';
-                ctx.fillText(userProfile.displayName, playerX, playerY - 70);
-
-                // Stickman Kinematics & Procedural Animations
-                ctx.strokeStyle = '#2ed573';
-                ctx.lineWidth = 3;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-
-                // Head
-                ctx.beginPath();
-                ctx.arc(playerX, playerY - 45, 12, 0, Math.PI * 2);
-                ctx.stroke();
-
-                // Torso
-                let hipY = playerY - 12;
-                ctx.beginPath();
-                ctx.moveTo(playerX, playerY - 33);
-                ctx.lineTo(playerX, hipY);
-                ctx.stroke();
-
-                // Procedural Leg & Arm Swing calculations
-                let legOffset = 0;
-                let armOffset = 0;
-                if (walkCycle > 0) {
-                    let swingIntensity = keys.shift ? 18 : 12;
-                    legOffset = Math.sin(walkCycle * (keys.shift ? 1.8 : 1)) * swingIntensity;
-                    armOffset = Math.cos(walkCycle * (keys.shift ? 1.8 : 1)) * 12;
+            // Animate frames if moving
+            if (player.isMoving) {
+                if (gameFrame % staggerFrames === 0) {
+                    if (player.frameX < cols - 1) {
+                        player.frameX++;
+                    } else {
+                        player.frameX = 0;
+                    }
                 }
-
-                // Legs
-                ctx.beginPath();
-                ctx.moveTo(playerX, hipY);
-                ctx.lineTo(playerX - 10 + legOffset, playerY + 20);
-                ctx.moveTo(playerX, hipY);
-                ctx.lineTo(playerX + 10 - legOffset, playerY + 20);
-                ctx.stroke();
-
-                // Arms
-                ctx.beginPath();
-                ctx.moveTo(playerX, playerY - 26);
-                ctx.lineTo(playerX - 14 + armOffset, playerY - 5);
-                ctx.moveTo(playerX, playerY - 26);
-                ctx.lineTo(playerX + 14 - armOffset, playerY - 5);
-                ctx.stroke();
             }
+        }
 
-            function gameLoop() {
-                update();
-                draw();
-                requestAnimationFrame(gameLoop);
-            }
-            gameLoop();
+        function drawPlayer() {
+            ctx.drawImage(
+                spriteSheet, 
+                player.frameX * spriteWidth, // Source X
+                player.frameY * spriteHeight, // Source Y
+                spriteWidth, // Source Width
+                spriteHeight, // Source Height
+                player.x, // Destination X
+                player.y, // Destination Y
+                player.width, // Destination Width
+                player.height // Destination Height
+            );
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            updatePlayer();
+            drawPlayer();
+            
+            gameFrame++;
+            requestAnimationFrame(animate);
         }
     </script>
 </body>
