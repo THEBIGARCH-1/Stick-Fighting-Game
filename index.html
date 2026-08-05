@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stickman Battle</title>
+    <title>Code-Drawn Stickman Battle</title>
     <style>
         body {
             margin: 0;
@@ -29,8 +29,8 @@
 <body>
 
     <div id="instructions">
-        <h2>Stickman Controls</h2>
-        <p><strong>Right Arrow:</strong> Move Forward | <strong>Shift:</strong> Sprint | <strong>Ctrl:</strong> Crawl</p>
+        <h2>Pure Code Stickman Controls</h2>
+        <p><strong>D:</strong> Move Right | <strong>A:</strong> Move Left | <strong>Shift:</strong> Sprint | <strong>Ctrl:</strong> Crawl</p>
     </div>
 
     <canvas id="gameCanvas" width="800" height="400"></canvas>
@@ -39,126 +39,171 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Load the sprite sheet
-        const spriteSheet = new Image();
-        spriteSheet.src = 'stickman_sprites.png'; 
-
-        // Sprite sheet dimensions (6 columns, 3 rows)
-        const cols = 6;
-        const rows = 3;
-        let spriteWidth, spriteHeight;
-
-        // Player object
+        // Player object created purely with code coordinates
         const player = {
-            x: 50,
-            y: 200,
-            width: 0, 
-            height: 0,
-            frameX: 0, // Current frame in the row
-            frameY: 0, // Current row (0=walk, 1=sprint, 2=crawl)
+            x: 100,
+            y: 260, // Baseline ground level for standing
             speed: 0,
-            isMoving: false
+            direction: 1, // 1 for right, -1 for left
+            action: 'idle', // 'idle', 'walk', 'sprint', 'crawl'
+            animFrame: 0
         };
 
-        // Animation timing
-        let gameFrame = 0;
-        const staggerFrames = 8; // Higher number = slower animation
-
-        // Input tracking
+        // Input tracking for WASD and modifiers
         const keys = {
-            ArrowRight: false,
+            KeyD: false,
+            KeyA: false,
             Shift: false,
             Control: false
         };
 
         window.addEventListener('keydown', (e) => {
-            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+            if (e.key === 'Shift') keys.Shift = true;
+            if (e.key === 'Control') keys.Control = true;
         });
 
         window.addEventListener('keyup', (e) => {
-            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+            if (e.key === 'Shift') keys.Shift = false;
+            if (e.key === 'Control') keys.Control = false;
         });
 
-        // Initialize sprite dimensions once the image loads
-        spriteSheet.onload = () => {
-            spriteWidth = spriteSheet.width / cols;
-            spriteHeight = spriteSheet.height / rows;
-            player.width = spriteWidth;
-            player.height = spriteHeight;
-            animate();
-        };
-
-        // Tell us if the image is missing!
-        spriteSheet.onerror = () => {
-            alert("ERROR: I cannot find 'stickman_sprites.png'! Make sure the image is in the EXACT same folder as this HTML file and the name is perfectly matched.");
-        };
-
         function updatePlayer() {
-            player.isMoving = false;
             player.speed = 0;
+            player.action = 'idle';
 
-            // Determine Action based on keys
-            if (keys.ArrowRight) {
-                player.isMoving = true;
-                
+            let isMovingHorizontally = keys.KeyD || keys.KeyA;
+
+            if (isMovingHorizontally) {
+                if (keys.KeyD) {
+                    player.direction = 1;
+                } else if (keys.KeyA) {
+                    player.direction = -1;
+                }
+
                 if (keys.Control) {
-                    // Crawl (Bottom Row)
-                    player.frameY = 2;
-                    player.speed = 1;
+                    player.action = 'crawl';
+                    player.speed = 1.5;
+                    player.y = 300; // Lower position for crawling
                 } else if (keys.Shift) {
-                    // Sprint (Middle Row)
-                    player.frameY = 1;
+                    player.action = 'sprint';
                     player.speed = 5;
+                    player.y = 260;
                 } else {
-                    // Walk (Top Row)
-                    player.frameY = 0;
+                    player.action = 'walk';
                     player.speed = 2.5;
+                    player.y = 260;
                 }
 
-                // Move player right (wrap around screen)
-                player.x += player.speed;
-                if (player.x > canvas.width) player.x = -player.width;
+                player.x += player.speed * player.direction;
+                player.animFrame += 0.15; // Drives leg/arm swinging animation
             } else {
-                // Return to idle (first frame of walking) if not moving
-                player.frameX = 0;
-                player.frameY = 0;
+                player.y = 260;
+                player.animFrame = 0;
             }
 
-            // Animate frames if moving
-            if (player.isMoving) {
-                if (gameFrame % staggerFrames === 0) {
-                    if (player.frameX < cols - 1) {
-                        player.frameX++;
-                    } else {
-                        player.frameX = 0;
-                    }
-                }
-            }
+            // Screen boundaries wrap around
+            if (player.x > canvas.width + 20) player.x = -20;
+            if (player.x < -20) player.x = canvas.width + 20;
         }
 
-        function drawPlayer() {
-            ctx.drawImage(
-                spriteSheet, 
-                player.frameX * spriteWidth, // Source X
-                player.frameY * spriteHeight, // Source Y
-                spriteWidth, // Source Width
-                spriteHeight, // Source Height
-                player.x, // Destination X
-                player.y, // Destination Y
-                player.width, // Destination Width
-                player.height // Destination Height
-            );
+        function drawStickman() {
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            
+            // If facing left, flip the drawing canvas horizontally
+            if (player.direction === -1) {
+                ctx.scale(-1, 1);
+            }
+
+            // Stickman styling
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#000000';
+            ctx.fillStyle = '#000000';
+            ctx.lineCap = 'round';
+
+            let swing = Math.sin(player.animFrame) * 15;
+
+            if (player.action === 'crawl') {
+                // --- CRAWLING POSE (Drawn with code) ---
+                // Head
+                ctx.beginPath();
+                ctx.arc(20, -15, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Body (Horizontal)
+                ctx.beginPath();
+                ctx.moveTo(-15, -15);
+                ctx.lineTo(25, -15);
+                ctx.stroke();
+
+                // Arms and legs bent for crawling motion
+                ctx.beginPath();
+                // Front arm/leg
+                ctx.moveTo(15, -15);
+                ctx.lineTo(20 + swing, 0);
+                ctx.moveTo(-10, -15);
+                ctx.lineTo(-5 - swing, 0);
+                // Back limbs
+                ctx.moveTo(5, -15);
+                ctx.lineTo(10 - swing, 0);
+                ctx.stroke();
+
+            } else {
+                // --- STANDING / WALKING / SPRINTING POSE (Drawn with code) ---
+                let bodyHeight = 50;
+                
+                // Head
+                ctx.beginPath();
+                ctx.arc(0, -bodyHeight - 12, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Torso
+                ctx.beginPath();
+                ctx.moveTo(0, -bodyHeight);
+                ctx.lineTo(0, -15);
+                ctx.stroke();
+
+                // Arms (swinging if moving)
+                ctx.beginPath();
+                ctx.moveTo(0, -bodyHeight + 10);
+                ctx.lineTo(15 + swing, -20);
+                ctx.moveTo(0, -bodyHeight + 10);
+                ctx.lineTo(-15 - swing, -20);
+                ctx.stroke();
+
+                // Legs (walking/sprinting strides)
+                ctx.beginPath();
+                ctx.moveTo(0, -15);
+                ctx.lineTo(15 + swing, 0);
+                ctx.moveTo(0, -15);
+                ctx.lineTo(-15 - swing, 0);
+                ctx.stroke();
+            }
+
+            ctx.restore();
         }
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
+            // Draw a simple ground line
+            ctx.beginPath();
+            ctx.moveTo(0, 310);
+            ctx.lineTo(800, 310);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+
             updatePlayer();
-            drawPlayer();
+            drawStickman();
             
-            gameFrame++;
             requestAnimationFrame(animate);
         }
+
+        // Start game loop
+        animate();
     </script>
 </body>
 </html>
