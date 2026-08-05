@@ -88,6 +88,11 @@
             animate();
         };
 
+        // Tell us if the image is missing!
+        spriteSheet.onerror = () => {
+            alert("ERROR: I cannot find 'stickman_sprites.png'! Make sure the image is in the EXACT same folder as this HTML file and the name is perfectly matched.");
+        };
+
         function updatePlayer() {
             player.isMoving = false;
             player.speed = 0;
